@@ -52,7 +52,7 @@
     line-height: 1;
     filter: drop-shadow(0 1vmin 2vmin rgba(0,0,0,0.25));
   }
-  #icon.left { transform: scaleX(-1); }
+  #icon.mirror { transform: scaleX(-1); }
   #side, #part, #color {
     font-weight: 900;
     text-transform: uppercase;
@@ -82,7 +82,7 @@
     60% { transform: scale(1.06); }
     100% { transform: scale(1); }
   }
-  #stage.landed #icon.left { animation: popLeft 0.35s ease-out; }
+  #stage.landed #icon.mirror { animation: popLeft 0.35s ease-out; }
   @keyframes popLeft {
     0% { transform: scaleX(-1) scale(0.85); }
     60% { transform: scaleX(-1) scale(1.06); }
@@ -235,7 +235,10 @@
     stage.classList.remove("idle", ...COLORS);
     stage.classList.add(r.color);
     iconEl.textContent = ICONS[r.part];
-    iconEl.classList.toggle("left", r.side === "left");
+    // The hand emoji is a right hand seen from the back, so mirror it for left.
+    // The foot emoji shows the sole, which reads the other way round, so mirror it for right.
+    const mirror = r.part === "hand" ? r.side === "left" : r.side === "right";
+    iconEl.classList.toggle("mirror", mirror);
     sideEl.textContent = r.side;
     partEl.textContent = r.part;
     colorEl.textContent = r.color;
