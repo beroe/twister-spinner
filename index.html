@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#111111">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Twister Spinner</title>
+<style>
+  :root {
+    --red: #e3242b;
+    --blue: #1f5fd6;
+    --yellow: #ffcf1a;
+    --green: #1aa548;
+    --bg: #111111;
+    --fg: #ffffff;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    height: 100%;
+    overflow: hidden;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+  #stage {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2vmin;
+    padding: 16px;
+    text-align: center;
+    cursor: pointer;
+    transition: background-color 0.25s ease;
+  }
+  #stage.red    { background: var(--red); }
+  #stage.blue   { background: var(--blue); }
+  #stage.yellow { background: var(--yellow); color: #111; }
+  #stage.green  { background: var(--green); }
+  #stage.spinning { transition: none; }
+
+  #icon {
+    font-size: min(34vmin, 30vh);
+    line-height: 1;
+    filter: drop-shadow(0 1vmin 2vmin rgba(0,0,0,0.25));
+  }
+  #icon.left { transform: scaleX(-1); }
+  #side, #part, #color {
+    font-weight: 900;
+    text-transform: uppercase;
+    line-height: 0.95;
+    letter-spacing: 0.02em;
+  }
+  #side  { font-size: min(13vw, 11vh); }
+  #part  { font-size: min(13vw, 11vh); }
+  #color {
+    margin-top: 1vmin;
+    font-size: min(17vw, 14vh);
+    padding: 0.05em 0.35em;
+    border-radius: 0.2em;
+    background: rgba(255,255,255,0.92);
+  }
+  #stage.red    #color { color: var(--red); }
+  #stage.blue   #color { color: var(--blue); }
+  #stage.yellow #color { color: #111; background: rgba(255,255,255,0.75); }
+  #stage.green  #color { color: var(--green); }
+  #stage.idle #color { display: none; }
+
+  #stage.landed #icon, #stage.landed #side, #stage.landed #part, #stage.landed #color {
+    animation: pop 0.35s ease-out;
+  }
+  @keyframes pop {
+    0% { transform: scale(0.85); }
+    60% { transform: scale(1.06); }
+    100% { transform: scale(1); }
+  }
+  #stage.landed #icon.left { animation: popLeft 0.35s ease-out; }
+  @keyframes popLeft {
+    0% { transform: scaleX(-1) scale(0.85); }
+    60% { transform: scaleX(-1) scale(1.06); }
+    100% { transform: scaleX(-1) scale(1); }
+  }
+
+  #hint {
+    position: fixed;
+    top: max(12px, env(safe-area-inset-top));
+    left: 0; right: 0;
+    text-align: center;
+    font-size: 15px;
+    opacity: 0.7;
+    pointer-events: none;
+  }
+
+  #controls {
+    position: fixed;
+    left: 50%;
+    bottom: max(12px, env(safe-area-inset-bottom));
+    transform: translateX(-50%);
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border-radius: 14px;
+    background: rgba(0,0,0,0.55);
+    color: #fff;
+    font-size: 14px;
+    max-width: calc(100vw - 32px);
+    transition: opacity 0.4s ease;
+  }
+  #controls.faded { opacity: 0.25; }
+  #controls button {
+    font: inherit;
+    color: #fff;
+    background: rgba(255,255,255,0.15);
+    border: 1px solid rgba(255,255,255,0.3);
+    border-radius: 10px;
+    padding: 8px 12px;
+    cursor: pointer;
+    min-height: 40px;
+  }
+  #controls button.on { background: #fff; color: #111; }
+  #controls label { display: flex; align-items: center; gap: 6px; }
+  #sens { width: 110px; }
+  #meter {
+    position: relative;
+    width: 80px;
+    height: 10px;
+    border-radius: 5px;
+    background: rgba(255,255,255,0.2);
+    overflow: hidden;
+  }
+  #meterFill {
+    position: absolute; inset: 0 auto 0 0;
+    width: 0%;
+    background: #fff;
+  }
+  #meterThresh {
+    position: absolute; top: 0; bottom: 0;
+    width: 2px;
+    background: #ff4d4d;
+  }
+  .mic-only { display: none !important; }
+  body.mic-on .mic-only { display: flex !important; }
+</style>
+</head>
+<body>
+  <div id="stage" class="idle" role="button" aria-live="polite" aria-label="Spin">
+    <div id="icon">🌀</div>
+    <div id="side">Twister</div>
+    <div id="part">Tap to spin</div>
+    <div id="color"></div>
+  </div>
+
+  <div id="hint">Tap anywhere, or turn on the mic and shout “Spin!”</div>
+
+  <div id="controls">
+    <button id="micBtn" type="button">🎤 Voice: off</button>
+    <label class="mic-only" title="How loud a sound must be to trigger a spin">
+      Sensitivity
+      <input id="sens" type="range" min="1" max="100" value="60">
+    </label>
+    <div id="meter" class="mic-only" title="Mic level (red line = trigger level)">
+      <div id="meterFill"></div>
+      <div id="meterThresh"></div>
+    </div>
+    <button id="speakBtn" type="button">🔈 Read aloud: off</button>
+    <button id="fsBtn" type="button">⛶ Full screen</button>
+  </div>
+
+<script>
+(() => {
+  const COLORS = ["red", "blue", "yellow", "green"];
+  const SIDES = ["left", "right"];
+  const PARTS = ["hand", "foot"];
+  const ICONS = { hand: "🖐️", foot: "🦶" };
+
+  const SPIN_MS = 1400;       // length of the shuffle animation
+  const COOLDOWN_MS = 1500;   // ignore the mic this long after a spin lands
+  const LOUD_HOLD_MS = 60;    // sound must stay loud this long (filters clicks/bumps)
+
+  const stage = document.getElementById("stage");
+  const iconEl = document.getElementById("icon");
+  const sideEl = document.getElementById("side");
+  const partEl = document.getElementById("part");
+  const colorEl = document.getElementById("color");
+  const hint = document.getElementById("hint");
+  const controls = document.getElementById("controls");
+  const micBtn = document.getElementById("micBtn");
+  const speakBtn = document.getElementById("speakBtn");
+  const fsBtn = document.getElementById("fsBtn");
+  const sens = document.getElementById("sens");
+  const meterFill = document.getElementById("meterFill");
+  const meterThresh = document.getElementById("meterThresh");
+
+  let spinning = false;
+  let busyUntil = 0;
+  let last = null;
+  let speakOn = false;
+
+  // ---------- persisted settings ----------
+  const store = {
+    get(k) { try { return localStorage.getItem(k); } catch { return null; } },
+    set(k, v) { try { localStorage.setItem(k, v); } catch {} },
+  };
+  if (store.get("sens")) sens.value = store.get("sens");
+  speakOn = store.get("speak") === "1";
+  updateSpeakBtn();
+
+  // ---------- spin logic ----------
+  function randomResult() {
+    let r;
+    do {
+      r = {
+        side: SIDES[Math.floor(Math.random() * 2)],
+        part: PARTS[Math.floor(Math.random() * 2)],
+        color: COLORS[Math.floor(Math.random() * 4)],
+      };
+    } while (last && r.side === last.side && r.part === last.part && r.color === last.color);
+    return r;
+  }
+
+  function show(r) {
+    stage.classList.remove("idle", ...COLORS);
+    stage.classList.add(r.color);
+    iconEl.textContent = ICONS[r.part];
+    iconEl.classList.toggle("left", r.side === "left");
+    sideEl.textContent = r.side;
+    partEl.textContent = r.part;
+    colorEl.textContent = r.color;
+  }
+
+  function spin() {
+    if (spinning) return;
+    spinning = true;
+    hint.style.display = "none";
+    if ("speechSynthesis" in window) speechSynthesis.cancel();
+    stage.classList.remove("landed");
+    stage.classList.add("spinning");
+
+    const final = randomResult();
+    const start = performance.now();
+    // Shuffle through random results, slowing down toward the end.
+    const tick = () => {
+      const t = (performance.now() - start) / SPIN_MS;
+      if (t >= 1) {
+        show(final);
+        last = final;
+        stage.classList.remove("spinning");
+        void stage.offsetWidth; // restart pop animation
+        stage.classList.add("landed");
+        if (navigator.vibrate) navigator.vibrate(60);
+        spinning = false;
+        busyUntil = performance.now() + COOLDOWN_MS;
+        announce(final);
+        return;
+      }
+      show(randomResult());
+      const delay = 50 + 250 * t * t;
+      setTimeout(tick, delay);
+    };
+    tick();
+  }
+
+  // ---------- read aloud ----------
+  function announce(r) {
+    if (!speakOn || !("speechSynthesis" in window)) return;
+    const u = new SpeechSynthesisUtterance(`${r.side} ${r.part}, ${r.color}`);
+    u.rate = 1;
+    // Keep the mic from hearing the announcement and spinning again.
+    busyUntil = Infinity;
+    u.onend = u.onerror = () => { busyUntil = performance.now() + COOLDOWN_MS; };
+    speechSynthesis.speak(u);
+  }
+
+  function updateSpeakBtn() {
+    speakBtn.textContent = speakOn ? "🔊 Read aloud: on" : "🔈 Read aloud: off";
+    speakBtn.classList.toggle("on", speakOn);
+  }
+
+  // ---------- voice / loudness trigger ----------
+  let audioCtx = null, analyser = null, micStream = null, buf = null;
+  let loudSince = 0, rafId = 0;
+
+  // Slider 1..100 -> RMS threshold. Higher sensitivity = lower threshold.
+  function threshold() {
+    const s = Number(sens.value) / 100;
+    return 0.35 * Math.pow(0.04 / 0.35, s);  // ~0.35 (deaf) .. ~0.04 (very sensitive)
+  }
+  // Map RMS to 0..1 on a log scale for the meter.
+  function meterPos(rms) {
+    const db = 20 * Math.log10(Math.max(rms, 1e-4));
+    return Math.min(1, Math.max(0, (db + 50) / 50)); // -50 dB .. 0 dB
+  }
+
+  async function startMic() {
+    try {
+      micStream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: false, autoGainControl: false },
+      });
+    } catch (e) {
+      alert("Couldn't use the microphone: " + e.message +
+            "\n\nThe page must be served over https (or localhost) and the browser must be allowed to use the mic.");
+      return false;
+    }
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    await audioCtx.resume();
+    const src = audioCtx.createMediaStreamSource(micStream);
+    analyser = audioCtx.createAnalyser();
+    analyser.fftSize = 1024;
+    buf = new Float32Array(analyser.fftSize);
+    src.connect(analyser);
+    loop();
+    return true;
+  }
+
+  function stopMic() {
+    cancelAnimationFrame(rafId);
+    if (micStream) micStream.getTracks().forEach(t => t.stop());
+    if (audioCtx) audioCtx.close();
+    micStream = audioCtx = analyser = null;
+  }
+
+  function loop() {
+    analyser.getFloatTimeDomainData(buf);
+    let sum = 0;
+    for (let i = 0; i < buf.length; i++) sum += buf[i] * buf[i];
+    const rms = Math.sqrt(sum / buf.length);
+    const th = threshold();
+
+    meterFill.style.width = (meterPos(rms) * 100) + "%";
+    meterThresh.style.left = (meterPos(th) * 100) + "%";
+
+    const now = performance.now();
+    if (rms > th && !spinning && now > busyUntil) {
+      if (!loudSince) loudSince = now;
+      if (now - loudSince >= LOUD_HOLD_MS) { loudSince = 0; spin(); }
+    } else {
+      loudSince = 0;
+    }
+    rafId = requestAnimationFrame(loop);
+  }
+
+  // ---------- wake lock (keep the screen on) ----------
+  let wakeLock = null;
+  async function keepAwake() {
+    try {
+      if ("wakeLock" in navigator && !wakeLock) {
+        wakeLock = await navigator.wakeLock.request("screen");
+        wakeLock.addEventListener("release", () => { wakeLock = null; });
+      }
+    } catch {}
+  }
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") keepAwake();
+  });
+
+  // ---------- controls ----------
+  let fadeTimer = 0;
+  function wakeControls() {
+    controls.classList.remove("faded");
+    clearTimeout(fadeTimer);
+    fadeTimer = setTimeout(() => controls.classList.add("faded"), 4000);
+  }
+
+  stage.addEventListener("click", () => { keepAwake(); spin(); wakeControls(); });
+  document.addEventListener("keydown", e => {
+    if (e.code === "Space" || e.code === "Enter") { e.preventDefault(); spin(); }
+  });
+  controls.addEventListener("pointerdown", wakeControls);
+
+  micBtn.addEventListener("click", async () => {
+    keepAwake();
+    if (micStream) {
+      stopMic();
+    } else if (!(await startMic())) {
+      return;
+    }
+    const on = !!micStream;
+    document.body.classList.toggle("mic-on", on);
+    micBtn.textContent = on ? "🎤 Voice: on" : "🎤 Voice: off";
+    micBtn.classList.toggle("on", on);
+    wakeControls();
+  });
+
+  speakBtn.addEventListener("click", () => {
+    speakOn = !speakOn;
+    store.set("speak", speakOn ? "1" : "0");
+    updateSpeakBtn();
+    // iOS only allows speech after a user gesture; prime it here.
+    if (speakOn && "speechSynthesis" in window) speechSynthesis.speak(new SpeechSynthesisUtterance(""));
+  });
+
+  sens.addEventListener("input", () => store.set("sens", sens.value));
+
+  const fsSupported = document.fullscreenEnabled || document.webkitFullscreenEnabled;
+  if (!fsSupported) fsBtn.style.display = "none";
+  fsBtn.addEventListener("click", () => {
+    const el = document.documentElement;
+    if (document.fullscreenElement || document.webkitFullscreenElement) {
+      (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+    } else {
+      (el.requestFullscreen || el.webkitRequestFullscreen).call(el);
+    }
+  });
+
+  wakeControls();
+})();
+</script>
+</body>
+</html>
