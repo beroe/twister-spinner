@@ -204,7 +204,7 @@
 
   let spinning = false;
   let busyUntil = 0;
-  let last = null;
+  const limbColor = {};  // e.g. { lefthand: "red" }: last color each limb landed on
   let speakOn = false;
 
   // ---------- persisted settings ----------
@@ -217,16 +217,18 @@
   updateSpeakBtn();
 
   // ---------- spin logic ----------
+  const pick = arr => arr[Math.floor(Math.random() * arr.length)];
+
+  // Any combination; used for the shuffle animation.
   function randomResult() {
-    let r;
-    do {
-      r = {
-        side: SIDES[Math.floor(Math.random() * 2)],
-        part: PARTS[Math.floor(Math.random() * 2)],
-        color: COLORS[Math.floor(Math.random() * 4)],
-      };
-    } while (last && r.side === last.side && r.part === last.part && r.color === last.color);
-    return r;
+    return { side: pick(SIDES), part: pick(PARTS), color: pick(COLORS) };
+  }
+
+  // A real spin: random limb, then a color other than the last one that limb got.
+  function nextResult() {
+    const side = pick(SIDES), part = pick(PARTS);
+    const prev = limbColor[side + part];
+    return { side, part, color: pick(COLORS.filter(c => c !== prev)) };
   }
 
   function show(r) {
@@ -247,14 +249,14 @@
     stage.classList.remove("landed");
     stage.classList.add("spinning");
 
-    const final = randomResult();
+    const final = nextResult();
     const start = performance.now();
     // Shuffle through random results, slowing down toward the end.
     const tick = () => {
       const t = (performance.now() - start) / SPIN_MS;
       if (t >= 1) {
         show(final);
-        last = final;
+        limbColor[final.side + final.part] = final.color;
         stage.classList.remove("spinning");
         void stage.offsetWidth; // restart pop animation
         stage.classList.add("landed");
