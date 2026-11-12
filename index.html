@@ -173,6 +173,7 @@
       <div id="meterFill"></div>
       <div id="meterThresh"></div>
     </div>
+    <button id="playersBtn" type="button" title="Limits how many limbs can be on one color at once">👥 2 players</button>
     <button id="speakBtn" type="button">🔈 Read aloud: off</button>
     <button id="fsBtn" type="button">⛶ Full screen</button>
   </div>
@@ -197,6 +198,7 @@
   const controls = document.getElementById("controls");
   const micBtn = document.getElementById("micBtn");
   const speakBtn = document.getElementById("speakBtn");
+  const playersBtn = document.getElementById("playersBtn");
   const fsBtn = document.getElementById("fsBtn");
   const sens = document.getElementById("sens");
   const meterFill = document.getElementById("meterFill");
@@ -206,6 +208,7 @@
   let busyUntil = 0;
   const limbColor = {};  // e.g. { lefthand: "red" }: last color each limb landed on
   let speakOn = false;
+  let manyPlayers = false; // false = 2 players, true = 3 or more
 
   // ---------- persisted settings ----------
   const store = {
@@ -214,6 +217,8 @@
   };
   if (store.get("sens")) sens.value = store.get("sens");
   speakOn = store.get("speak") === "1";
+  manyPlayers = store.get("players") === "3";
+  updatePlayersBtn();
   updateSpeakBtn();
 
   // ---------- spin logic ----------
@@ -224,11 +229,25 @@
     return { side: pick(SIDES), part: pick(PARTS), color: pick(COLORS) };
   }
 
-  // A real spin: random limb, then a color other than the last one that limb got.
+  // There are only 6 dots of each color. With 2 players, at most 3 remembered
+  // limbs may share a color; with 3 or more players, at most 2.
+  function maxPerColor() { return manyPlayers ? 2 : 3; }
+
+  // Colors this limb may move to: not the color it's already on, and not a
+  // color that the other limbs have already filled up.
+  function allowedColors(limb) {
+    return COLORS.filter(c => {
+      if (c === limbColor[limb]) return false;
+      const others = Object.keys(limbColor).filter(l => l !== limb && limbColor[l] === c).length;
+      return others < maxPerColor();
+    });
+  }
+
+  // A real spin: random limb, then a random color that's allowed for it.
+  // Every limb always has at least 2 allowed colors, so any limb can be picked.
   function nextResult() {
     const side = pick(SIDES), part = pick(PARTS);
-    const prev = limbColor[side + part];
-    return { side, part, color: pick(COLORS.filter(c => c !== prev)) };
+    return { side, part, color: pick(allowedColors(side + part)) };
   }
 
   function show(r) {
@@ -285,6 +304,10 @@
     busyUntil = Infinity;
     u.onend = u.onerror = () => { busyUntil = performance.now() + COOLDOWN_MS; };
     speechSynthesis.speak(u);
+  }
+
+  function updatePlayersBtn() {
+    playersBtn.textContent = manyPlayers ? "👥 3+ players" : "👥 2 players";
   }
 
   function updateSpeakBtn() {
@@ -395,6 +418,12 @@
     micBtn.textContent = on ? "🎤 Voice: on" : "🎤 Voice: off";
     micBtn.classList.toggle("on", on);
     wakeControls();
+  });
+
+  playersBtn.addEventListener("click", () => {
+    manyPlayers = !manyPlayers;
+    store.set("players", manyPlayers ? "3" : "2");
+    updatePlayersBtn();
   });
 
   speakBtn.addEventListener("click", () => {
